@@ -31,21 +31,24 @@ public class Expression {
 		this.node = node;
 	}
 
+	public Expression() {
+	}
+
 	public boolean evaluateOperation(Tuple tuple) {
 		List<Node> nextNode = node.getChildren();
 		Node operationLeft = nextNode.get(0);
 		Node operationRight = nextNode.get(1);
 		switch (node.getAttr()) {
-		case "expression": {
+		case "WHERE": {
 
 			return new Expression(operationLeft).evaluateOperation(tuple);
 
 		}
-		case "and": {
+		case "AND": {
 			return new Expression(operationLeft).evaluateOperation(tuple)
 					&& new Expression(operationRight).evaluateOperation(tuple);
 		}
-		case "or": {
+		case "OR": {
 			return new Expression(operationLeft).evaluateOperation(tuple)
 					|| new Expression(operationRight).evaluateOperation(tuple);
 		}
@@ -62,7 +65,7 @@ public class Expression {
 			return new Expression(operationLeft).evaluateIntValue(tuple) < new Expression(operationRight)
 					.evaluateIntValue(tuple);
 		}
-		case "not": {
+		case "NOT": {
 			return !new Expression(operationLeft).evaluateOperation(tuple);
 		}
 		default:
@@ -141,4 +144,13 @@ public class Expression {
 		}
 		return 0;
 	}
+
+	public Node getNode() {
+		return node;
+	}
+
+	public void setNode(Node node) {
+		this.node = node;
+	}
+	
 }

@@ -1,7 +1,7 @@
 package com.database;
 
+import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import com.database.entity.Node;
@@ -17,12 +17,20 @@ import storageManager.Tuple;
 
 public class Query {
 
-	// private static Parser paser = new Parser();
+	// private static Parser parser = new Parser();
 	private static MainMemory memory = new MainMemory();
 	private static Disk disk = new Disk();
 	private static SchemaManager schemaManager = new SchemaManager(memory, disk);
 
-	public void queryExcutor(Node node) {
+	private static void reset() {
+		memory = new MainMemory();
+		disk = new Disk();
+		schemaManager = new SchemaManager(memory, disk);
+		disk.resetDiskIOs();
+		disk.resetDiskTimer();
+	}
+
+	public void queryExcutor(Node node) throws IOException {
 		String statement = node.getAttr();
 		switch (statement) {
 		case "create":
@@ -46,95 +54,6 @@ public class Query {
 
 	}
 
-	private void insertQuery(List<Node> node) {
-
-		List<String> colNameList;
-		ArrayList<String> value_list = new ArrayList<String>();
-		String relationName = null;
-		List<Node> colList = null;
-
-		for (Node subNode : node) {
-			String name = subNode.getAttr();
-			if (name.equals("table")) {
-				relationName = subNode.getChildren().get(0).getAttr();
-			} else if (name.equals("attr_detail")) {
-				colList = subNode.getChildren();
-			} else if (name.equals("values")) {
-				Relation relation = schemaManager.getRelation(relationName);
-				Tuple newTuple = relation.createTuple();
-				assert colList != null : "ERROE: column list is null";
-
-				int index = 0;
-				for (Node attrNode : colList) {
-					assert attrNode.getAttr().equalsIgnoreCase("ATTR_NAME") : "ERROR: not ATTR_NAME node";
-					assert subNode.getChildren().get(index).getAttr()
-							.equalsIgnoreCase("VALUE") : "ERROR: not VALUE node";
-					assert attrNode.getChildren().size() == 1 : "ERROR: ATTR_NAME list length not 1";
-					assert newTuple.getSchema().getFieldType(
-							attrNode.getChildren().get(0).getAttr()) != null : "ERROR: cannot get attr type";
-
-					String value = subNode.getChildren().get(index).getChildren().get(0).getAttr();
-					String type = attrNode.getChildren().get(0).getAttr();
-					if (newTuple.getSchema().getFieldType(type).equals(FieldType.INT)) {
-						newTuple.setField(type, Integer.parseInt(value));
-					} else {
-						newTuple.setField(type, value);
-					}
-					index += 1;
-				}
-				appendTupleToRelation(relation, memory, 0, newTuple);
-			} else if (subNode.getAttr().equalsIgnoreCase("SELECT")) {
-				/**
-				 * need to be more general here
-				 */
-				Relation tempRelation = Helper.selectHandler(schemaManager, memory, "SELECT * FROM course", 1);
-
-				// debuging
-				/*
-				 * ArrayList<Tuple> tuples; tuples = parameter.memory.getTuples(0,
-				 * tempRelation.getNumOfBlocks());
-				 * System.out.println("========================"); for (Tuple t : tuples) {
-				 * System.out.println(t); } System.out.println("========================");
-				 */
-
-				String[] tp = { "sid", "homework", "project", "exam", "grade" };
-				ArrayList<String> tempList = new ArrayList<>(Arrays.asList(tp));
-				Helper.insertFromSel(schemaManager, memory, schemaManager.getRelation(relationName), tempList,
-						tempRelation);
-			}
-		}
-		System.out.println("INSERT COMPLETE");
-
-	}
-
-	private void appendTupleToRelation(Relation relation, MainMemory memory, int i, Tuple tuple) {
-		Block block;
-		if (relation.getNumOfBlocks() == 0) {
-			block = memory.getBlock(i);
-			block.clear(); // clear the block
-			block.appendTuple(tuple); // append the tuple
-			relation.setBlock(relation.getNumOfBlocks(), i);
-		} else {
-			relation.getBlock(relation.getNumOfBlocks() - 1, i);
-			block = memory.getBlock(i);
-			if (block.isFull()) {
-				block.clear(); // clear the block
-				block.appendTuple(tuple); // append the tuple
-				relation.setBlock(relation.getNumOfBlocks(), i); 
-																									
-			} else {
-				block.appendTuple(tuple); // append the tuple
-				relation.setBlock(relation.getNumOfBlocks() - 1, i);
-																										
-			}
-		}
-	}
-
-	private void selectQuery(List<Node> node) {
-		// TODO Auto-generated method stub
-
-	}
-
 	private void deleteQuery(List<Node> node) {
 
 		Node table = null;
@@ -142,7 +61,7 @@ public class Query {
 		for (Node item : node) {
 			if (item.getAttr().equals("table"))
 				table = item;
-			else if (item.getAttr().equalsIgnoreCase("expression"))
+			else if (item.getAttr().equalsIgnoreCase("where"))
 				condition = item;
 		}
 		assert table != null;
@@ -217,4 +136,78 @@ public class Query {
 		}
 		return;
 	}
+
+	private void insertQuery(List<Node> node) {
+
+		List<String> colNameList;
+		ArrayList<String> value_list = new ArrayList<String>();
+		String relationName = null;
+		List<Node> colList = null;
+
+		for (Node subNode : node) {
+			String name = subNode.getAttr();
+			if (name.equals("table")) {
+				relationName = subNode.getChildren().get(0).getAttr();
+			} else if (name.equals("attr_detail")) {
+				colList = subNode.getChildren();
+			} else if (name.equals("values")) {
+				Relation relation = schemaManager.getRelation(relationName);
+				Tuple newTuple = relation.createTuple();
+				assert colList != null : "ERROE: column list is null";
+
+				int index = 0;
+				for (Node attrNode : colList) {
+					assert attrNode.getAttr().equalsIgnoreCase("ATTR_NAME") : "ERROR: not ATTR_NAME node";
+					assert subNode.getChildren().get(index).getAttr()
+							.equalsIgnoreCase("VALUE") : "ERROR: not VALUE node";
+					assert attrNode.getChildren().size() == 1 : "ERROR: ATTR_NAME list length not 1";
+					assert newTuple.getSchema().getFieldType(
+							attrNode.getChildren().get(0).getAttr()) != null : "ERROR: cannot get attr type";
+
+					String value = subNode.getChildren().get(index).getChildren().get(0).getAttr();
+					String type = attrNode.getChildren().get(0).getAttr();
+					if (newTuple.getSchema().getFieldType(type).equals(FieldType.INT)) {
+						newTuple.setField(type, Integer.parseInt(value));
+					} else {
+						newTuple.setField(type, value);
+					}
+					index += 1;
+				}
+				appendTupleToRelation(relation, memory, 0, newTuple);
+			} else if (name.equalsIgnoreCase("SELECT")) {
+				SelectPrinter sp = new SelectPrinter(subNode.getChildren());
+				sp.insertSelectRelation(relationName, colList);
+			}
+		}
+		System.out.println("INSERT COMPLETE");
+
+	}
+
+	private void appendTupleToRelation(Relation relation, MainMemory memory, int i, Tuple tuple) {
+		Block block;
+		if (relation.getNumOfBlocks() == 0) {
+			block = memory.getBlock(i);
+			block.clear(); // clear the block
+			block.appendTuple(tuple); // append the tuple
+			relation.setBlock(relation.getNumOfBlocks(), i);
+		} else {
+			relation.getBlock(relation.getNumOfBlocks() - 1, i);
+			block = memory.getBlock(i);
+			if (block.isFull()) {
+				block.clear(); // clear the block
+				block.appendTuple(tuple); // append the tuple
+				relation.setBlock(relation.getNumOfBlocks(), i);
+
+			} else {
+				block.appendTuple(tuple); // append the tuple
+				relation.setBlock(relation.getNumOfBlocks() - 1, i);
+			}
+		}
+	}
+
+	private void selectQuery(List<Node> nodes) throws IOException {
+		SelectPrinter sp = new SelectPrinter(nodes);
+		sp.runSelect();
+	}
+
 }
