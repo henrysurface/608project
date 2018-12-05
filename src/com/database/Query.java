@@ -35,7 +35,7 @@ public class Query {
 		switch (statement) {
 		case "CREATE":
 			createQuery(node.getChildren());
-			//System.out.println("create");
+			// System.out.println("create");
 			break;
 		case "DROP":
 			dropQuery(node.getChildren());
@@ -114,7 +114,7 @@ public class Query {
 		List<Node> colDetails = node.get(1).getChildren();
 		for (Node nextNode : colDetails) {
 			assert nextNode.getAttr().equalsIgnoreCase("create_attr") : "Invalid sql: cannot find create_attr node.";
-			//List<Node> attrNodes = nextNode.getChildren().get(0).getChildren();
+			// List<Node> attrNodes = nextNode.getChildren().get(0).getChildren();
 			fieldName.add(nextNode.getChildren().get(0).getChildren().get(0).getAttr());
 			String type = nextNode.getChildren().get(1).getChildren().get(0).getAttr();
 			if (type.equalsIgnoreCase("INT")) {
@@ -140,8 +140,6 @@ public class Query {
 
 	private void insertQuery(List<Node> node) {
 
-		List<String> colNameList;
-		ArrayList<String> value_list = new ArrayList<String>();
 		String relationName = null;
 		List<Node> colList = null;
 
@@ -154,32 +152,23 @@ public class Query {
 			} else if (name.equalsIgnoreCase("VALUES")) {
 				Relation relation = schemaManager.getRelation(relationName);
 				Tuple newTuple = relation.createTuple();
-				assert colList != null : "ERROE: column list is null";
-
 				int index = 0;
 				for (Node attrNode : colList) {
-					assert attrNode.getAttr().equalsIgnoreCase("ATTR_NAME") : "ERROR: not ATTR_NAME node";
-					assert subNode.getChildren().get(index).getAttr()
-							.equalsIgnoreCase("VALUE") : "ERROR: not VALUE node";
-					assert attrNode.getChildren().size() == 1 : "ERROR: ATTR_NAME list length not 1";
-					assert newTuple.getSchema().getFieldType(
-							attrNode.getChildren().get(0).getAttr()) != null : "ERROR: cannot get attr type";
-
 					String value = subNode.getChildren().get(index).getChildren().get(0).getAttr();
 					String type = attrNode.getChildren().get(0).getAttr();
 					if (newTuple.getSchema().getFieldType(type).equals(FieldType.INT)) {
-						if(value.equalsIgnoreCase("NULL")) {
+						if (value.equalsIgnoreCase("NULL")) {
 							newTuple.setField(type, Integer.MIN_VALUE);
-						}else {
+						} else {
 							newTuple.setField(type, Integer.parseInt(value));
 						}
-						
+
 					} else {
 						newTuple.setField(type, value);
 					}
 					index += 1;
 				}
-				appendTupleToRelation(relation, memory, 0, newTuple);
+				addTuplesToRelation(relation, memory, 0, newTuple);
 			} else if (name.equalsIgnoreCase("SELECT")) {
 				SelectPrinter sp = new SelectPrinter(subNode.getChildren(), memory, disk, schemaManager);
 				sp.insertSelectRelation(relationName, colList);
@@ -189,14 +178,9 @@ public class Query {
 
 	}
 
-	private void appendTupleToRelation(Relation relation, MainMemory memory, int i, Tuple tuple) {
+	private void addTuplesToRelation(Relation relation, MainMemory memory, int i, Tuple tuple) {
 		Block block;
-		if (relation.getNumOfBlocks() == 0) {
-			block = memory.getBlock(i);
-			block.clear(); // clear the block
-			block.appendTuple(tuple); // append the tuple
-			relation.setBlock(relation.getNumOfBlocks(), i);
-		} else {
+		if (relation.getNumOfBlocks() != 0) {
 			relation.getBlock(relation.getNumOfBlocks() - 1, i);
 			block = memory.getBlock(i);
 			if (block.isFull()) {
@@ -208,6 +192,12 @@ public class Query {
 				block.appendTuple(tuple); // append the tuple
 				relation.setBlock(relation.getNumOfBlocks() - 1, i);
 			}
+
+		} else {
+			block = memory.getBlock(i);
+			block.clear(); // clear the block
+			block.appendTuple(tuple); // append the tuple
+			relation.setBlock(relation.getNumOfBlocks(), i);
 		}
 	}
 

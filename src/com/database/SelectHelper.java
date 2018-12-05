@@ -3,12 +3,9 @@ package com.database;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Queue;
 
 import com.database.entity.Node;
 
@@ -30,50 +27,49 @@ public class SelectHelper {
 		ArrayList<Tuple> tuples = new ArrayList<>();
 		if (fieldList.get(0).equalsIgnoreCase("*")) {
 			String fieldName = fieldList.get(0);
-			tuples = onePassRemoveDuplicateStar(relation, memory);
-			name = relation.getRelationName() + "_distinct_" + fieldName;
+			tuples = onePassDistinctStar(relation, memory);
+			name = relation.getRelationName() + "_DIST_" + fieldName;
 		} else {
 			for (String fieldName : fieldList) {
-				name = relation.getRelationName() + "_distinct_" + fieldName;
+				name = relation.getRelationName() + "_DIST_" + fieldName;
 				if (schemaManager.relationExists(name))
 					schemaManager.deleteRelation(name);
 				if (relation.getNumOfBlocks() <= memory.getMemorySize()) {
-					tuples = onePassRemoveDuplicate(relation, memory, fieldName);
+					tuples = onePassDistinct(relation, memory, fieldName);
 				} else {
-					tuples = twoPassRemoveDuplicate(relation, memory, fieldName);
+					tuples = twoPassDistinct(relation, memory, fieldName);
 				}
 			}
 		}
 		return createRelationFromTuples(tuples, name, schemaManager, relation, memory);
 	}
 
-	private static ArrayList<Tuple> twoPassRemoveDuplicate(Relation relation, MainMemory memory, String fieldName) {
+	private static ArrayList<Tuple> twoPassDistinct(Relation relation, MainMemory memory, String fieldName) {
 		// phase 1: making sorted sublists
-		twoPassHelper(relation, memory, fieldName);
+		twoPassDistinctHelper(relation, memory, fieldName);
 
 		// phase 2
 		int numOfBlocks = relation.getNumOfBlocks();
 		HashSet<String> hashSet = new HashSet<>();
 		ArrayList<Tuple> res = new ArrayList<>();
 		ArrayList<ArrayList<Tuple>> tuples = new ArrayList<>();
-		ArrayList<Pair<Integer, Integer>> blockIndexOfSublists = new ArrayList<>();
+		ArrayList<Pair<Integer, Integer>> subListBlockIndex = new ArrayList<>();
 
 		// bring in a block from each of the sorted sublists
 		for (int i = 0, j = 0; i < numOfBlocks; i += memory.getMemorySize(), j++) {
-			// initial index must be i + 1
-			blockIndexOfSublists.add(new Pair<>(i + 1, Math.min(i + memory.getMemorySize(), numOfBlocks)));
 			relation.getBlock(i, j);
 			tuples.add(memory.getTuples(j, 1));
+			subListBlockIndex.add(new Pair<>(i + 1, Math.min(i + memory.getMemorySize(), numOfBlocks)));
+			
 		}
 
 		for (int k = 0; k < relation.getNumOfTuples(); ++k) {
-			for (int i = 0; i < blockIndexOfSublists.size(); ++i) {
+			for (int i = 0; i < subListBlockIndex.size(); ++i) {
 				// read in the next block form a sublist if its block is exhausted
-				if (tuples.get(i).isEmpty()
-						&& (blockIndexOfSublists.get(i).first < blockIndexOfSublists.get(i).second)) {
-					relation.getBlock(blockIndexOfSublists.get(i).first, i);
+				if (tuples.get(i).isEmpty() && (subListBlockIndex.get(i).first < subListBlockIndex.get(i).second)) {
 					tuples.set(i, memory.getTuples(i, 1));
-					blockIndexOfSublists.get(i).first++;
+					subListBlockIndex.get(i).first++;
+					relation.getBlock(subListBlockIndex.get(i).first, i);
 				}
 			}
 
@@ -84,10 +80,6 @@ public class SelectHelper {
 					minTuples.add(tuples.get(j).get(0));
 			}
 
-			// the first difference to twoPassSort -
-			// multiple elements could be removed in one loop, the number of loops could be
-			// less than numOfBlocks
-			// so the loop could break earlier
 			if (minTuples.isEmpty())
 				break;
 
@@ -115,27 +107,12 @@ public class SelectHelper {
 					}
 				}
 			}
-//            for(int j = 0; j < tuples.size(); ++j){
-//                if(!tuples.get(j).isEmpty()) {
-//                    if(tuples.get(j).get(0).getField(fieldName).type.equals(minTuple.getField(fieldName).type)){
-//                        if(tuples.get(j).get(0).getField(fieldName).type.equals(FieldType.STR20)){
-//                            if(tuples.get(j).get(0).getField(fieldName).str.equals(minTuple.getField(fieldName).str))
-//                                tuples.get(j).remove(0);
-//                        }else{
-//                            if(tuples.get(j).get(0).getField(fieldName).integer == minTuple.getField(fieldName).integer)
-//                                tuples.get(j).remove(0);
-//                        }
-//                    }
-//                }
-//            }
 		}
-
-		// for(Tuple tuple : res) System.out.println(tuple);
 		clearMemory(memory);
 		return res;
 	}
 
-	private static ArrayList<Tuple> onePassRemoveDuplicate(Relation relation, MainMemory memory, String fieldName) {
+	private static ArrayList<Tuple> onePassDistinct(Relation relation, MainMemory memory, String fieldName) {
 		ArrayList<Tuple> res = new ArrayList<>();
 		HashSet<String> hashSet = new HashSet<>();
 		int numOfBlocks = relation.getNumOfBlocks();
@@ -155,7 +132,7 @@ public class SelectHelper {
 		return res;
 	}
 
-	private static ArrayList<Tuple> onePassRemoveDuplicateStar(Relation relation, MainMemory memory) {
+	private static ArrayList<Tuple> onePassDistinctStar(Relation relation, MainMemory memory) {
 		ArrayList<Tuple> res = new ArrayList<>();
 		HashSet<Tuple> hashSet = new HashSet<>();
 		int numOfBlocks = relation.getNumOfBlocks();
@@ -180,27 +157,27 @@ public class SelectHelper {
 		int numOfBlocks = relation.getNumOfBlocks(), memoryBlocks = memory.getMemorySize();
 
 		if (numOfBlocks <= memoryBlocks) {
-			tuples = selectQueryHelper(expression, relation, memory, 0, numOfBlocks);
+			tuples = selectHelper(expression, relation, memory, 0, numOfBlocks);
 		} else {
-			int remainNumber = numOfBlocks;
-			int relationindex = 0;
+			int remainBlock = numOfBlocks;
+			int relationIndex = 0;
 			ArrayList<Tuple> tmp;
-			while (remainNumber > memoryBlocks) {
-				tmp = selectQueryHelper(expression, relation, memory, relationindex, memoryBlocks);
+			while (remainBlock > memoryBlocks) {
+				tmp = selectHelper(expression, relation, memory, relationIndex, memoryBlocks);
 				tuples.addAll(tmp);
-				remainNumber = remainNumber - memoryBlocks;
-				relationindex = relationindex + memoryBlocks;
+				remainBlock = remainBlock - memoryBlocks;
+				relationIndex = relationIndex + memoryBlocks;
 			}
-			tmp = selectQueryHelper(expression, relation, memory, relationindex, remainNumber);
+			tmp = selectHelper(expression, relation, memory, relationIndex, remainBlock);
 			tuples.addAll(tmp);
 		}
-		String name = relation.getRelationName() + "_select_";
+		String name = relation.getRelationName() + "_SELECT_";
 		if (schemaManager.relationExists(name))
 			schemaManager.deleteRelation(name);
 		return createRelationFromTuples(tuples, name, schemaManager, relation, memory);
 	}
 
-	private static ArrayList<Tuple> selectQueryHelper(Expression expression, Relation relation, MainMemory memory,
+	private static ArrayList<Tuple> selectHelper(Expression expression, Relation relation, MainMemory memory,
 			int relationIndex, int numOfBlocks) {
 		Block block;
 		ArrayList<Tuple> res = new ArrayList<>();
@@ -238,30 +215,28 @@ public class SelectHelper {
 
 	private static ArrayList<Tuple> twoPassSort(Relation relation, MainMemory memory, String fieldName) {
 		// phase 1: making sorted sublists
-		twoPassHelper(relation, memory, fieldName);
+		twoPassDistinctHelper(relation, memory, fieldName);
 
 		// phase 2: merging
 		int numOfBlocks = relation.getNumOfBlocks();
 		ArrayList<Tuple> res = new ArrayList<>();
 		ArrayList<ArrayList<Tuple>> tuples = new ArrayList<>();
-		ArrayList<Pair<Integer, Integer>> blockIndexOfSublists = new ArrayList<>();
+		ArrayList<Pair<Integer, Integer>> subListBlockIndex = new ArrayList<>();
 
 		// bring in a block from each of the sorted sublists
 		for (int i = 0, j = 0; i < numOfBlocks; i += memory.getMemorySize(), j++) {
-			// initial index must be i + 1
-			blockIndexOfSublists.add(new Pair<>(i + 1, Math.min(i + memory.getMemorySize(), numOfBlocks)));
+			subListBlockIndex.add(new Pair<>(i + 1, Math.min(i + memory.getMemorySize(), numOfBlocks)));
 			relation.getBlock(i, j);
 			tuples.add(memory.getTuples(j, 1));
 		}
 
 		for (int k = 0; k < relation.getNumOfTuples(); ++k) {
-			for (int i = 0; i < blockIndexOfSublists.size(); ++i) {
+			for (int i = 0; i < subListBlockIndex.size(); ++i) {
 				// read in the next block from a sublist if its block is exhausted
-				if (tuples.get(i).isEmpty()
-						&& (blockIndexOfSublists.get(i).first < blockIndexOfSublists.get(i).second)) {
-					relation.getBlock(blockIndexOfSublists.get(i).first, i);
+				if ( (subListBlockIndex.get(i).first < subListBlockIndex.get(i).second) && tuples.get(i).isEmpty()) {
 					tuples.set(i, memory.getTuples(i, 1));
-					blockIndexOfSublists.get(i).first++;
+					subListBlockIndex.get(i).first++;
+					relation.getBlock(subListBlockIndex.get(i).first, i);
 				}
 			}
 
@@ -280,23 +255,19 @@ public class SelectHelper {
 					tuples.get(j).remove(0);
 			}
 		}
-
-		// for(Tuple tuple : res) System.out.println(tuple);
 		clearMemory(memory);
 		return res;
 	}
 
-	private static void twoPassHelper(Relation relation, MainMemory memory, String fieldName) {
+	private static void twoPassDistinctHelper(Relation relation, MainMemory memory, String fieldName) {
 		int numOfBlocks = relation.getNumOfBlocks(), sortedBlocks = 0;
 		ArrayList<Tuple> tuples;
 		while (sortedBlocks < numOfBlocks) {
 			int t = Math.min(memory.getMemorySize(), numOfBlocks - sortedBlocks);
 			relation.getBlocks(sortedBlocks, 0, t);
-			// sort main memory
 			tuples = onePassSort(memory, fieldName, t);
 			memory.setTuples(0, tuples);
 			relation.setBlocks(sortedBlocks, 0, t);
-			// t <= memory.getMemorySize() ---> error!!!!(When numOfBlocks > 10)
 			if (t < memory.getMemorySize()) {
 				break;
 			} else {
@@ -527,28 +498,6 @@ public class SelectHelper {
 			output.add(newTuple);
 			newTuple = relation.createTuple();
 		}
-//		int blk_cnt = relation.getNumOfBlocks();
-//		Block blk = memory.getBlock(0);
-//		ArrayList<FieldType> fieldTypes = new ArrayList<>();
-//		for (Node s : colList) {
-//			fieldTypes.add(relation.getSchema().getFieldType(s.getChildren().get(0).getAttr()));
-//		}
-//		ArrayList<String> fields = new ArrayList<>();
-//		for(Node col : colList) {
-//			fields.add(col.getAttr());
-//		}
-//		Schema schema = new Schema(fields, fieldTypes);
-//		while (!output.isEmpty()) {
-//			blk.clear();
-//			for (int i = 0; i < schema.getTuplesPerBlock(); i++) {
-//				if (!output.isEmpty()) {
-//					Tuple t = output.get(0);
-//					blk.setTuple(i, t);
-//					output.remove(t);
-//				}
-//			}
-//			relation.setBlock(blk_cnt++, 0);
-//		}
 	}
 
 }

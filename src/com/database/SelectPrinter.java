@@ -8,14 +8,10 @@ import java.util.List;
 
 import com.database.entity.Node;
 
-import storageManager.Block;
 import storageManager.Disk;
-import storageManager.FieldType;
 import storageManager.MainMemory;
 import storageManager.Relation;
-import storageManager.Schema;
 import storageManager.SchemaManager;
-import storageManager.Tuple;
 
 public class SelectPrinter {
 
@@ -91,7 +87,7 @@ public class SelectPrinter {
 		if (col.getChildren().get(0).getAttr().equalsIgnoreCase("DISTINCT")) {
 			col = col.getChildren().get(0);
 			distinct = true;
-			System.out.println("dict Here");
+			//System.out.println("dict Here");
 		}
 		ArrayList<String> fieldList = new ArrayList<>();
 		getFieldList(col, fieldList);
@@ -128,21 +124,11 @@ public class SelectPrinter {
 			if (schemaManager.relationExists(temp))
 				schemaManager.deleteRelation(temp);
 		}
-
-//		if (relation.getNumOfBlocks() <= memory.getMemorySize()) {
-//			if (!printTupleWithinMemorySize(col, order, expression, fieldList, bw, muti, distinct, distinctNodes,
-//					targetNodes, relation)) {
-//				return;
-//			}
-//		} else {
-//			printTuplesLargerThanMemorySize(col, order, distinct, relationName, expression);
-//		}
 	}
 
 	
 	private void getFieldList(Node col, ArrayList<String> fieldList) {
 		for (Node node : col.getChildren()) {
-			assert node.getAttr().equals("attr_name");
 			StringBuilder fieldName = new StringBuilder();
 			for (Node field : node.getChildren()) {
 				fieldName.append(field.getAttr() + ".");
