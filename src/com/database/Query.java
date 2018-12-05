@@ -33,19 +33,20 @@ public class Query {
 	public void queryExcutor(Node node) throws IOException {
 		String statement = node.getAttr();
 		switch (statement) {
-		case "create":
+		case "CREATE":
 			createQuery(node.getChildren());
+			//System.out.println("create");
 			break;
-		case "drop":
+		case "DROP":
 			dropQuery(node.getChildren());
 			break;
-		case "delete":
+		case "DELETE":
 			deleteQuery(node.getChildren());
 			break;
-		case "select":
+		case "SELECT":
 			selectQuery(node.getChildren());
 			break;
-		case "insert":
+		case "INSERT":
 			insertQuery(node.getChildren());
 			break;
 		default:
@@ -59,7 +60,7 @@ public class Query {
 		Node table = null;
 		Node condition = null;
 		for (Node item : node) {
-			if (item.getAttr().equals("table"))
+			if (item.getAttr().equalsIgnoreCase("table"))
 				table = item;
 			else if (item.getAttr().equalsIgnoreCase("where"))
 				condition = item;
@@ -105,20 +106,20 @@ public class Query {
 		ArrayList<FieldType> fieldType = new ArrayList<>();
 		Node table = node.get(0);
 		String tableName = table.getAttr();
-		if (!tableName.equals("table")) {
+		if (!tableName.equalsIgnoreCase("table")) {
 			System.out.println("Invalid sql: please type 'table' after create term.");
 			return;
 		}
 		String relationName = table.getChildren().get(0).getAttr();
 		List<Node> colDetails = node.get(1).getChildren();
 		for (Node nextNode : colDetails) {
-			assert nextNode.getAttr().equals("create_attr") : "Invalid sql: cannot find create_attr node.";
-			List<Node> attrNodes = nextNode.getChildren().get(0).getChildren();
-			fieldName.add(attrNodes.get(0).getAttr());
-			String type = attrNodes.get(1).getAttr();
-			if (type.equals("INT")) {
+			assert nextNode.getAttr().equalsIgnoreCase("create_attr") : "Invalid sql: cannot find create_attr node.";
+			//List<Node> attrNodes = nextNode.getChildren().get(0).getChildren();
+			fieldName.add(nextNode.getChildren().get(0).getChildren().get(0).getAttr());
+			String type = nextNode.getChildren().get(1).getChildren().get(0).getAttr();
+			if (type.equalsIgnoreCase("INT")) {
 				fieldType.add(FieldType.INT);
-			} else if (type.equals("STR20")) {
+			} else if (type.equalsIgnoreCase("STR20")) {
 				fieldType.add(FieldType.STR20);
 			} else {
 				System.out.println("Invalid sql: invalid attribute type!");
@@ -146,11 +147,11 @@ public class Query {
 
 		for (Node subNode : node) {
 			String name = subNode.getAttr();
-			if (name.equals("table")) {
+			if (name.equalsIgnoreCase("TABLE")) {
 				relationName = subNode.getChildren().get(0).getAttr();
-			} else if (name.equals("attr_detail")) {
+			} else if (name.equalsIgnoreCase("ATTR_LIST")) {
 				colList = subNode.getChildren();
-			} else if (name.equals("values")) {
+			} else if (name.equalsIgnoreCase("VALUES")) {
 				Relation relation = schemaManager.getRelation(relationName);
 				Tuple newTuple = relation.createTuple();
 				assert colList != null : "ERROE: column list is null";
@@ -167,7 +168,12 @@ public class Query {
 					String value = subNode.getChildren().get(index).getChildren().get(0).getAttr();
 					String type = attrNode.getChildren().get(0).getAttr();
 					if (newTuple.getSchema().getFieldType(type).equals(FieldType.INT)) {
-						newTuple.setField(type, Integer.parseInt(value));
+						if(value.equalsIgnoreCase("NULL")) {
+							newTuple.setField(type, Integer.MIN_VALUE);
+						}else {
+							newTuple.setField(type, Integer.parseInt(value));
+						}
+						
 					} else {
 						newTuple.setField(type, value);
 					}
@@ -175,7 +181,7 @@ public class Query {
 				}
 				appendTupleToRelation(relation, memory, 0, newTuple);
 			} else if (name.equalsIgnoreCase("SELECT")) {
-				SelectPrinter sp = new SelectPrinter(subNode.getChildren());
+				SelectPrinter sp = new SelectPrinter(subNode.getChildren(), memory, disk, schemaManager);
 				sp.insertSelectRelation(relationName, colList);
 			}
 		}
@@ -206,7 +212,8 @@ public class Query {
 	}
 
 	private void selectQuery(List<Node> nodes) throws IOException {
-		SelectPrinter sp = new SelectPrinter(nodes);
+
+		SelectPrinter sp = new SelectPrinter(nodes, memory, disk, schemaManager);
 		sp.runSelect();
 	}
 

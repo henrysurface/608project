@@ -57,7 +57,7 @@ public class RunProgram {
 					}
 					// system waiting
 					System.out.println("-----------------File Read Mode---------------");
-					System.out.println("Enter \"exit\" to exit mode\n\nPlease enter file name:");
+					System.out.println("Enter \"-exit\" to exit mode\n\nPlease enter file name:");
 					fileName = in.nextLine();
 				}
 
@@ -76,15 +76,15 @@ public class RunProgram {
 					System.out.println(attr);
 					nodeDisplay(list);
 					
-//					try {
-//						query.queryExcutor(node);
-//					} catch (IOException e) {
-//						// TODO Auto-generated catch block
-//						e.printStackTrace();
-//					}
+					try {
+						query.queryExcutor(node);
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 
 					System.out.println("--------------------Command Line Mode------------------");
-					System.out.println("Input \"quit\" to exit command line mode\n\nPlease input command:");
+					System.out.println("Input \"-exit\" to exit command line mode\n\nPlease input command:");
 					command = in.nextLine();
 					// iterator.execute(parser.parse(command));
 				}

@@ -9,18 +9,18 @@ import storageManager.Tuple;
 
 public class Expression {
 
-	class Attribute {
+	class Temp {
 		String type;
-		String stringValue;
-		int integerValue;
-		public Attribute() {}
-		public boolean equals(Attribute attribute) {
-			if (!this.type.equals(attribute.type))
+		String tempString;
+		int tempInteger;
+
+		public boolean equals(Temp t2) {
+			if (!this.type.equalsIgnoreCase(t2.type))
 				return false;
-			if (this.type.equals("integer")) {
-				return this.integerValue == attribute.integerValue;
+			if (this.type.equals("INT")) {
+				return this.tempInteger == t2.tempInteger;
 			} else {
-				return this.stringValue.equals(attribute.stringValue);
+				return this.tempString.equals(t2.tempString);
 			}
 		}
 	}
@@ -35,38 +35,38 @@ public class Expression {
 	}
 
 	public boolean evaluateOperation(Tuple tuple) {
-		List<Node> nextNode = node.getChildren();
-		Node operationLeft = nextNode.get(0);
-		Node operationRight = nextNode.get(1);
+//		List<Node> nextNode = node.getChildren().get();
+//		Node operationLeft = nextNode.get(0);
+//		Node operationRight = nextNode.get(1);
 		switch (node.getAttr()) {
 		case "WHERE": {
 
-			return new Expression(operationLeft).evaluateOperation(tuple);
+			return new Expression(node.getChildren().get(0)).evaluateOperation(tuple);
 
 		}
 		case "AND": {
-			return new Expression(operationLeft).evaluateOperation(tuple)
-					&& new Expression(operationRight).evaluateOperation(tuple);
+			return new Expression(node.getChildren().get(0)).evaluateOperation(tuple)
+					&& new Expression(node.getChildren().get(1)).evaluateOperation(tuple);
 		}
 		case "OR": {
-			return new Expression(operationLeft).evaluateOperation(tuple)
-					|| new Expression(operationRight).evaluateOperation(tuple);
+			return new Expression(node.getChildren().get(0)).evaluateOperation(tuple)
+					|| new Expression(node.getChildren().get(1)).evaluateOperation(tuple);
 		}
 		case "=": {
-			Expression left = new Expression(operationLeft);
-			Expression right = new Expression(operationRight);
+			Expression left = new Expression(node.getChildren().get(0));
+			Expression right = new Expression(node.getChildren().get(1));
 			return left.evaluateTypes(tuple).equals(right.evaluateTypes(tuple));
 		}
 		case ">": {
-			return new Expression(operationLeft).evaluateIntValue(tuple) > new Expression(operationRight)
-					.evaluateIntValue(tuple);
+			return new Expression(node.getChildren().get(0))
+					.evaluateIntValue(tuple) > new Expression(node.getChildren().get(1)).evaluateIntValue(tuple);
 		}
 		case "<": {
-			return new Expression(operationLeft).evaluateIntValue(tuple) < new Expression(operationRight)
-					.evaluateIntValue(tuple);
+			return new Expression(node.getChildren().get(0))
+					.evaluateIntValue(tuple) < new Expression(node.getChildren().get(1)).evaluateIntValue(tuple);
 		}
 		case "NOT": {
-			return !new Expression(operationLeft).evaluateOperation(tuple);
+			return !new Expression(node.getChildren().get(0)).evaluateOperation(tuple);
 		}
 		default:
 			try {
@@ -78,15 +78,15 @@ public class Expression {
 		return false;
 	}
 
-	private Attribute evaluateTypes(Tuple tuple) {
-		Attribute temp = new Attribute();
-		if (node.getAttr().equals("string")) {
-			temp.type = "string";
-			temp.stringValue = node.getChildren().get(0).getAttr();
-		} else if (node.getAttr().equalsIgnoreCase("integer")) {
-			temp.type = "integer";
-			temp.integerValue = Integer.parseInt(node.getChildren().get(0).getAttr());
-		} else if (node.getAttr().equalsIgnoreCase("attr_name")) {
+	private Temp evaluateTypes(Tuple tuple) {
+		Temp temp = new Temp();
+		if (node.getAttr().equalsIgnoreCase("STRING")) {
+			temp.type = "STRING";
+			temp.tempString = node.getChildren().get(0).getAttr();
+		} else if (node.getAttr().equalsIgnoreCase("INT")) {
+			temp.type = "INT";
+			temp.tempInteger = Integer.parseInt(node.getChildren().get(0).getAttr());
+		} else if (node.getAttr().equalsIgnoreCase("ATTR_NAME")) {
 			StringBuilder fieldName = new StringBuilder();
 			for (Node name : node.getChildren()) {
 				fieldName.append(name.getAttr() + ".");
@@ -95,39 +95,40 @@ public class Expression {
 			String name = fieldName.toString();
 			FieldType type = tuple.getSchema().getFieldType(name);
 			if (type == FieldType.INT) {
-				temp.type = "integer";
-				temp.integerValue = tuple.getField(name).integer;
+				temp.type = "INT";
+				temp.tempInteger = tuple.getField(name).integer;
 			} else {
-				temp.type = "string";
-				temp.stringValue = tuple.getField(name).str;
+				temp.type = "STRING";
+				temp.tempString = tuple.getField(name).str;
 			}
 		} else {
-			temp.type = "integer";
-			temp.integerValue = evaluateIntValue(tuple);
+			temp.type = "INT";
+			temp.tempInteger = evaluateIntValue(tuple);
 		}
 		return temp;
 	}
 
 	private int evaluateIntValue(Tuple tuple) {
 		List<Node> nextNodes = node.getChildren();
-		Node leftValue = nextNodes.get(0);
-		Node rightValue = nextNodes.get(1);
+//		Node leftValue = nextNodes.get(0);
+//		Node rightValue = nextNodes.get(1);
 		switch (node.getAttr()) {
 		case "+": {
-			return new Expression(leftValue).evaluateIntValue(tuple)
-					+ new Expression(rightValue).evaluateIntValue(tuple);
+			return new Expression(node.getChildren().get(0)).evaluateIntValue(tuple)
+					+ new Expression(node.getChildren().get(1)).evaluateIntValue(tuple);
 		}
 		case "-": {
-			return new Expression(leftValue).evaluateIntValue(tuple)
-					- new Expression(rightValue).evaluateIntValue(tuple);
+			return new Expression(node.getChildren().get(0)).evaluateIntValue(tuple)
+					- new Expression(node.getChildren().get(1)).evaluateIntValue(tuple);
 		}
 		case "*": {
-			return new Expression(leftValue).evaluateIntValue(tuple)
-					* new Expression(rightValue).evaluateIntValue(tuple);
+			return new Expression(node.getChildren().get(0)).evaluateIntValue(tuple)
+					* new Expression(node.getChildren().get(1)).evaluateIntValue(tuple);
 		}
 		case "/": {
-			return new Expression(leftValue).evaluateIntValue(tuple)
-					/ new Expression(rightValue).evaluateIntValue(tuple);
+			int left = new Expression(node.getChildren().get(0)).evaluateIntValue(tuple);
+			int right = new Expression(node.getChildren().get(1)).evaluateIntValue(tuple);
+			return right == 0 ? 0 : left / right;
 		}
 		case "attr_name": {
 			StringBuilder fieldName = new StringBuilder();
@@ -139,7 +140,7 @@ public class Expression {
 			return tuple.getField(name).integer;
 		}
 		case "integer": {
-			return Integer.parseInt(leftValue.getAttr());
+			return Integer.parseInt(node.getChildren().get(0).getAttr());
 		}
 		}
 		return 0;
@@ -152,5 +153,5 @@ public class Expression {
 	public void setNode(Node node) {
 		this.node = node;
 	}
-	
+
 }

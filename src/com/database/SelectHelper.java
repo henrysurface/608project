@@ -3,9 +3,12 @@ package com.database;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 
 import com.database.entity.Node;
 
@@ -22,15 +25,24 @@ public class SelectHelper {
 	public static Relation distinct(SchemaManager schemaManager, Relation relation, MainMemory memory,
 			ArrayList<String> fieldList) {
 		// for(String fieldName : fieldList) {}
-		String fieldName = fieldList.get(0);
-		String name = relation.getRelationName() + "_distinct_" + fieldName;
-		if (schemaManager.relationExists(name))
-			schemaManager.deleteRelation(name);
-		ArrayList<Tuple> tuples;
-		if (relation.getNumOfBlocks() <= memory.getMemorySize()) {
-			tuples = onePassRemoveDuplicate(relation, memory, fieldName);
+		// String fieldName = fieldList.get(0);
+		String name = null;
+		ArrayList<Tuple> tuples = new ArrayList<>();
+		if (fieldList.get(0).equalsIgnoreCase("*")) {
+			String fieldName = fieldList.get(0);
+			tuples = onePassRemoveDuplicateStar(relation, memory);
+			name = relation.getRelationName() + "_distinct_" + fieldName;
 		} else {
-			tuples = twoPassRemoveDuplicate(relation, memory, fieldName);
+			for (String fieldName : fieldList) {
+				name = relation.getRelationName() + "_distinct_" + fieldName;
+				if (schemaManager.relationExists(name))
+					schemaManager.deleteRelation(name);
+				if (relation.getNumOfBlocks() <= memory.getMemorySize()) {
+					tuples = onePassRemoveDuplicate(relation, memory, fieldName);
+				} else {
+					tuples = twoPassRemoveDuplicate(relation, memory, fieldName);
+				}
+			}
 		}
 		return createRelationFromTuples(tuples, name, schemaManager, relation, memory);
 	}
@@ -127,9 +139,10 @@ public class SelectHelper {
 		ArrayList<Tuple> res = new ArrayList<>();
 		HashSet<String> hashSet = new HashSet<>();
 		int numOfBlocks = relation.getNumOfBlocks();
-		relation.setBlocks(0, 0, numOfBlocks);
+		relation.getBlocks(0, 0, numOfBlocks);
 		ArrayList<Tuple> tuples = memory.getTuples(0, numOfBlocks);
 		for (Tuple tuple : tuples) {
+
 			if (tuple.getField(fieldName).type.equals(FieldType.STR20)) {
 				if (hashSet.add(tuple.getField(fieldName).str))
 					res.add(tuple);
@@ -137,6 +150,20 @@ public class SelectHelper {
 				if (hashSet.add(Integer.toString(tuple.getField(fieldName).integer)))
 					res.add(tuple);
 			}
+		}
+		clearMemory(memory);
+		return res;
+	}
+
+	private static ArrayList<Tuple> onePassRemoveDuplicateStar(Relation relation, MainMemory memory) {
+		ArrayList<Tuple> res = new ArrayList<>();
+		HashSet<Tuple> hashSet = new HashSet<>();
+		int numOfBlocks = relation.getNumOfBlocks();
+		relation.getBlocks(0, 0, numOfBlocks);
+		ArrayList<Tuple> tuples = memory.getTuples(0, numOfBlocks);
+		for (Tuple tuple : tuples) {
+			if (hashSet.add(tuple))
+				res.add(tuple);
 		}
 		clearMemory(memory);
 		return res;
@@ -289,7 +316,7 @@ public class SelectHelper {
 	private static Relation createRelationFromTuples(ArrayList<Tuple> tuples, String name, SchemaManager schemaManager,
 			Relation relation, MainMemory memory) {
 		Schema schema = relation.getSchema();
-		if (schemaManager.relationExists(name))
+		if (name != null && schemaManager.relationExists(name))
 			schemaManager.deleteRelation(name);
 		Relation tempRelation = schemaManager.createRelation(name, schema);
 		int tupleNumber = tuples.size(), tuplesPerBlock = schema.getTuplesPerBlock();
@@ -365,17 +392,19 @@ public class SelectHelper {
 	private static void projectHelper(Relation relation, MainMemory memory, Node col, int numOfBlocks,
 			BufferedWriter bw) throws IOException {
 		ArrayList<Tuple> tuples = memory.getTuples(0, numOfBlocks);
-		Node mutiNode = col.getChildren().get(0).getChildren().get(0);
+		String mutiNode = col.getChildren().get(0).getChildren().get(0).getAttr();
 		String distinctAttr = col.getChildren().get(0).getAttr();
 		List<Node> dictinctNodes = col.getChildren().get(0).getChildren();
 		if (mutiNode.equals("*")) {
 			printMuti(tuples, bw);
+			return;
 		} else {
 			if (distinctAttr.equalsIgnoreCase("DISTINCT")) {
 				printField(bw, col.getChildren().get(0).getChildren());
 			} else {
 				printField(bw, col.getChildren());
 			}
+
 		}
 		System.out.println();
 		bw.write("\n");
@@ -488,37 +517,38 @@ public class SelectHelper {
 		ArrayList<Tuple> output = new ArrayList<>();
 		for (Tuple t : tuples) {
 			for (int j = 0; j < colList.size(); j++) {
-				if (t.getField(colList.get(j).getAttr()).type == FieldType.INT)
-					newTuple.setField(j, Integer.parseInt(t.getField(colList.get(j).getAttr()).toString()));
+				if (t.getField(colList.get(j).getChildren().get(0).getAttr()).type == FieldType.INT)
+					newTuple.setField(j,
+							Integer.parseInt(t.getField(colList.get(j).getChildren().get(0).getAttr()).toString()));
 				else
-					newTuple.setField(j, t.getField(colList.get(j).getAttr()).toString());
+					newTuple.setField(j, t.getField(colList.get(j).getChildren().get(0).getAttr()).toString());
 			}
 
 			output.add(newTuple);
 			newTuple = relation.createTuple();
 		}
-		int blk_cnt = relation.getNumOfBlocks();
-		Block blk = memory.getBlock(0);
-		ArrayList<FieldType> fieldTypes = new ArrayList<>();
-		for (Node s : colList) {
-			fieldTypes.add(relation.getSchema().getFieldType(s.getAttr()));
-		}
-		ArrayList<String> fields = new ArrayList<>();
-		for(Node col : colList) {
-			fields.add(col.getAttr());
-		}
-		Schema schema = new Schema(fields, fieldTypes);
-		while (!output.isEmpty()) {
-			blk.clear();
-			for (int i = 0; i < schema.getTuplesPerBlock(); i++) {
-				if (!output.isEmpty()) {
-					Tuple t = output.get(0);
-					blk.setTuple(i, t);
-					output.remove(t);
-				}
-			}
-			relation.setBlock(blk_cnt++, 0);
-		}
+//		int blk_cnt = relation.getNumOfBlocks();
+//		Block blk = memory.getBlock(0);
+//		ArrayList<FieldType> fieldTypes = new ArrayList<>();
+//		for (Node s : colList) {
+//			fieldTypes.add(relation.getSchema().getFieldType(s.getChildren().get(0).getAttr()));
+//		}
+//		ArrayList<String> fields = new ArrayList<>();
+//		for(Node col : colList) {
+//			fields.add(col.getAttr());
+//		}
+//		Schema schema = new Schema(fields, fieldTypes);
+//		while (!output.isEmpty()) {
+//			blk.clear();
+//			for (int i = 0; i < schema.getTuplesPerBlock(); i++) {
+//				if (!output.isEmpty()) {
+//					Tuple t = output.get(0);
+//					blk.setTuple(i, t);
+//					output.remove(t);
+//				}
+//			}
+//			relation.setBlock(blk_cnt++, 0);
+//		}
 	}
 
 }

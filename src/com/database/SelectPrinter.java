@@ -25,15 +25,19 @@ public class SelectPrinter {
 	Node col = null, from = null, order = null;
 	Expression expression = null;
 
-	public SelectPrinter(List<Node> nodes) {
+	public SelectPrinter(List<Node> nodes, MainMemory memory2, Disk disk2, SchemaManager schemaManager2) {
+		memory = memory2;
+		disk = disk2;
+		schemaManager = schemaManager2;
+		
 		for (Node node : nodes) {
-			if (node.getAttr().equals("attr_detail"))
+			if (node.getAttr().equalsIgnoreCase("ATTR_LIST"))
 				col = node;
-			if (node.getAttr().equals("from"))
+			if (node.getAttr().equalsIgnoreCase("FROM"))
 				from = node;
-			if (node.getAttr().equals("where"))
+			if (node.getAttr().equalsIgnoreCase("WHERE"))
 				expression = new Expression(node);
-			if (node.getAttr().equals("order"))
+			if (node.getAttr().equalsIgnoreCase("ORDER"))
 				order = node;
 		}
 		assert col != null;
@@ -51,22 +55,25 @@ public class SelectPrinter {
 		// single relation
 		if (from.getChildren().size() == 1) {
 			selectSingleRelation(bw);
+			//System.out.println("Here");
 		}
 		// multiple-relation
 		else {
-
+			System.out.println("AAA");
 		}
 	}
 
 	private void selectSingleRelation(BufferedWriter bw) throws IOException {
 		boolean distinct = false;
-		if (col.getChildren().get(0).getAttr().equals("distinct")) {
+		//boolean star = false;
+		if (col.getChildren().get(0).getAttr().equalsIgnoreCase("DISTINCT")) {
 			col = col.getChildren().get(0);
 			distinct = true;
+			System.out.println("dict Here");
 		}
 		ArrayList<String> fieldList = new ArrayList<>();
 		getFieldList(col, fieldList);
-		assert from.getChildren().get(0).getAttr().equalsIgnoreCase("table");
+		assert from.getChildren().get(0).getAttr().equalsIgnoreCase("TABLE");
 		String relationName = from.getChildren().get(0).getChildren().get(0).getAttr();
 		Relation relation = schemaManager.getRelation(relationName);
 		ArrayList<String> tempRelations = new ArrayList<>();
@@ -75,17 +82,20 @@ public class SelectPrinter {
 			relation = SelectHelper.distinct(schemaManager, relation, memory, fieldList);
 			SelectHelper.clearMemory(memory);
 			tempRelations.add(relation.getRelationName());
+			//System.out.println("dict Here");
 		}
 		if (expression != null) {
 			relation = SelectHelper.select(schemaManager, relation, memory, col, order, expression);
 			SelectHelper.clearMemory(memory);
 			tempRelations.add(relation.getRelationName());
+			System.out.println("Expression Here");
 		}
 
 		if (order != null) {
 			relation = SelectHelper.sort(schemaManager, relation, memory, col, order, expression);
 			SelectHelper.clearMemory(memory);
 			tempRelations.add(relation.getRelationName());
+			System.out.println("Order Here");
 		}
 
 		SelectHelper.project(relation, memory, col, expression, bw);
@@ -420,12 +430,11 @@ public class SelectPrinter {
 
 	public void insertSelectRelation(String relationNameFromInsert, List<Node> colList) {
 		boolean distinct = false;
-		if (col.getChildren().get(0).getAttr().equals("distinct")) {
+		if (col.getChildren().get(0).getAttr().equalsIgnoreCase("DISTINCT")) {
 			col = col.getChildren().get(0);
 			distinct = true;
 		}
 		ArrayList<String> fieldList = new ArrayList<>();
-		getFieldList(col, fieldList);
 		assert from.getChildren().get(0).getAttr().equalsIgnoreCase("table");
 		String relationName = from.getChildren().get(0).getChildren().get(0).getAttr();
 		if(!relationNameFromInsert.equalsIgnoreCase(relationName)) {
