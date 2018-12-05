@@ -30,7 +30,7 @@ public class Query {
 		disk.resetDiskTimer();
 	}
 
-	public void queryExcutor(Node node) throws IOException {
+	public void queryExecutor(Node node) throws IOException {
 		String statement = node.getAttr();
 		switch (statement) {
 		case "CREATE":

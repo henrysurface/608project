@@ -49,7 +49,7 @@ public class RunProgram {
 						nodeDisplay(list);
 						
 						try {
-							query.queryExcutor(node);
+							query.queryExecutor(node);
 						} catch (IOException e) {
 							// TODO Auto-generated catch block
 							e.printStackTrace();
@@ -77,7 +77,7 @@ public class RunProgram {
 					nodeDisplay(list);
 					
 					try {
-						query.queryExcutor(node);
+						query.queryExecutor(node);
 					} catch (IOException e) {
 						// TODO Auto-generated catch block
 						e.printStackTrace();

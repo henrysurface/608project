@@ -5,7 +5,7 @@ import java.util.PriorityQueue;
 import storageManager.*;
 
 public class PhysicalQueryPlan {
-	public Relation crossJoin(SchemaManager schemaMan, MainMemory mem, String tableA, String tableB) {
+	public static Relation crossJoin(SchemaManager schemaMan, MainMemory mem, String tableA, String tableB) {
 		Relation productOfAB;
 		ArrayList<Tuple> tuples;
 
@@ -49,7 +49,7 @@ public class PhysicalQueryPlan {
 	}
 
 	// handle cross join of multiple tables
-	public Relation crossJoin(SchemaManager schema_Man, MainMemory mem, String... tables) {
+	public static Relation crossJoin(SchemaManager schema_Man, MainMemory mem, String... tables) {
 		Relation product = null;
 		String intermediate = tables[0];
 		for (int i = 1; i < tables.length; i++) {
@@ -59,7 +59,7 @@ public class PhysicalQueryPlan {
 		return product;
 	}
 
-	private ArrayList<Tuple> onePassCrossJoin(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product) {
+	private static ArrayList<Tuple> onePassCrossJoin(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product) {
 		ArrayList<Tuple> results = new ArrayList<Tuple>();
 		Relation small, large;
 
@@ -102,7 +102,7 @@ public class PhysicalQueryPlan {
 		return results;
 	}
 
-	private ArrayList<Tuple> nestedLoopCrossJoin(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product) {
+	private static ArrayList<Tuple> nestedLoopCrossJoin(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product) {
 		ArrayList<Tuple> results = new ArrayList<Tuple>();
 		Relation small, large;
 
@@ -154,7 +154,7 @@ public class PhysicalQueryPlan {
 		return results;
 	}
 
-	private Schema mergeSchema(Relation a, Relation b) {
+	private static Schema mergeSchema(Relation a, Relation b) {
 		ArrayList<String> fieldsMerged = new ArrayList<String>();
 		ArrayList<FieldType> typesMerged = new ArrayList<FieldType>();
 		Schema schemaA = a.getSchema();
@@ -171,11 +171,15 @@ public class PhysicalQueryPlan {
 		String tableB = b.getRelationName();
 
 		for (String fieldName : fieldsA) {
-			fieldName = tableA + "." + fieldName;
+			if (!fieldName.contains(".")) {
+				fieldName = tableA + "." + fieldName;
+			}
 			fieldsMerged.add(fieldName);
 		}
 		for (String fieldName : fieldsB) {
-			fieldName = tableB + "." + fieldName;
+			if (!fieldName.contains(".")) {
+				fieldName = tableB + "." + fieldName;
+			}
 			fieldsMerged.add(fieldName);
 		}
 
@@ -185,7 +189,7 @@ public class PhysicalQueryPlan {
 		return new Schema(fieldsMerged, typesMerged);
 	}
 
-	private Tuple joinTwoTuples(Tuple a, Tuple b, Relation product) {
+	private static Tuple joinTwoTuples(Tuple a, Tuple b, Relation product) {
 		int numOfFieldsA = a.getNumOfFields();
 		int numOfFieldsB = b.getNumOfFields();
 		Tuple merged = product.createTuple();
@@ -206,7 +210,7 @@ public class PhysicalQueryPlan {
 		return merged;
 	}
 
-	public Relation naturalJoin(SchemaManager schemaMan, MainMemory mem, String tableA, String tableB, String commonAttr) {
+	public static Relation naturalJoin(SchemaManager schemaMan, MainMemory mem, String tableA, String tableB, String commonAttr) {
 		Relation naturalJoinRelation;
 		ArrayList<Tuple> tuples;
 		
@@ -227,9 +231,26 @@ public class PhysicalQueryPlan {
 		else {
 			tuples = twoPassSortMerge(schemaMan, mem, relationA, relationB, naturalJoinRelation, commonAttr);
 		}
+		
+		// save tuples to last one block in memory and then save the block to disk
+		int tuples_per_block = tuples.get(0).getTuplesPerBlock();
+		int num_blocks = tuples.size() / tuples_per_block;
+		for (int i = 0; i < num_blocks; i++) {
+			mem.setTuples(mem.getMemorySize() - 1,
+					new ArrayList<Tuple>(tuples.subList(i * tuples_per_block, (i + 1) * tuples_per_block)));
+			naturalJoinRelation.setBlock(i, mem.getMemorySize() - 1);
+		}
+		// handle the last few tuples that do not fill up one block if they exist
+		if (tuples.size() % tuples_per_block > 0) {
+			mem.setTuples(mem.getMemorySize() - 1,
+					new ArrayList<Tuple>(tuples.subList(num_blocks * tuples_per_block, tuples.size())));
+			naturalJoinRelation.setBlock(num_blocks, mem.getMemorySize() - 1);
+		}
+
+		return naturalJoinRelation;
 	}
 	
-	private ArrayList<Tuple> onePassNaturalJoin(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product, String commonAttr) {
+	private static ArrayList<Tuple> onePassNaturalJoin(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product, String commonAttr) {
 		ArrayList<Tuple> results = new ArrayList<Tuple>();
 		Relation small, large;
 
@@ -274,7 +295,7 @@ public class PhysicalQueryPlan {
 		return results;
 	}
 	
-	private ArrayList<Tuple> twoPassSortMerge(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product, String commonAttr) {
+	private static ArrayList<Tuple> twoPassSortMerge(SchemaManager schemaMan, MainMemory mem, Relation relationA, Relation relationB, Relation product, String commonAttr) {
 		ArrayList<Tuple> results = new ArrayList<Tuple>();		
 		TupleComparator comp = new TupleComparator(commonAttr);
 
@@ -308,7 +329,7 @@ public class PhysicalQueryPlan {
 		
 	}
 	
-	private ArrayList<Pair<Integer, Integer>> createSublists(MainMemory mem, Relation relation, TupleComparator comp, int listNum) {
+	private static ArrayList<Pair<Integer, Integer>> createSublists(MainMemory mem, Relation relation, TupleComparator comp, int listNum) {
 		ArrayList<Tuple> temp = new ArrayList<Tuple>();
 		ArrayList<Pair<Integer, Integer>> blockIndexOfSublists = new ArrayList<>();
 		int numOfBlocks = relation.getNumOfBlocks();
@@ -317,7 +338,7 @@ public class PhysicalQueryPlan {
 
 		int lastListSize = numOfBlocks - listSize * (listNum - 1); // the size of last list may be smaller than the average size
 		
-		//divide tuples in relation into listNum lists, each list with listSize of blocks except last batch
+		//divide all tuples of relation into listNum lists, each list with listSize of blocks except last batch
 		//read each batch into memory, sort tuples in a priority queue, write them back into disk
 		PriorityQueue<Tuple> sortedList = new PriorityQueue<Tuple>(lastListSize * tuples_per_block, comp);
 		
