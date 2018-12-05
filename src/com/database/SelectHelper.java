@@ -50,16 +50,17 @@ public class SelectHelper {
 
 		// phase 2
 		int numOfBlocks = relation.getNumOfBlocks();
+		int memSize = memory.getMemorySize();
 		HashSet<String> hashSet = new HashSet<>();
 		ArrayList<Tuple> res = new ArrayList<>();
 		ArrayList<ArrayList<Tuple>> tuples = new ArrayList<>();
 		ArrayList<Pair<Integer, Integer>> subListBlockIndex = new ArrayList<>();
 
 		// bring in a block from each of the sorted sublists
-		for (int i = 0, j = 0; i < numOfBlocks; i += memory.getMemorySize(), j++) {
+		for (int i = 0, j = 0; i < numOfBlocks; i += memSize, j++) {
 			relation.getBlock(i, j);
 			tuples.add(memory.getTuples(j, 1));
-			subListBlockIndex.add(new Pair<>(i + 1, Math.min(i + memory.getMemorySize(), numOfBlocks)));
+			subListBlockIndex.add(new Pair<>(i + 1, Math.min(i + memSize, numOfBlocks)));
 			
 		}
 
@@ -214,18 +215,19 @@ public class SelectHelper {
 	}
 
 	private static ArrayList<Tuple> twoPassSort(Relation relation, MainMemory memory, String fieldName) {
-		// phase 1: making sorted sublists
+		
 		twoPassDistinctHelper(relation, memory, fieldName);
 
 		// phase 2: merging
 		int numOfBlocks = relation.getNumOfBlocks();
+		int memSize = memory.getMemorySize();
 		ArrayList<Tuple> res = new ArrayList<>();
 		ArrayList<ArrayList<Tuple>> tuples = new ArrayList<>();
 		ArrayList<Pair<Integer, Integer>> subListBlockIndex = new ArrayList<>();
 
 		// bring in a block from each of the sorted sublists
-		for (int i = 0, j = 0; i < numOfBlocks; i += memory.getMemorySize(), j++) {
-			subListBlockIndex.add(new Pair<>(i + 1, Math.min(i + memory.getMemorySize(), numOfBlocks)));
+		for (int i = 0, j = 0; i < numOfBlocks; i += memSize, j++) {
+			subListBlockIndex.add(new Pair<>(i + 1, Math.min(i + memSize, numOfBlocks)));
 			relation.getBlock(i, j);
 			tuples.add(memory.getTuples(j, 1));
 		}
@@ -262,16 +264,17 @@ public class SelectHelper {
 	private static void twoPassDistinctHelper(Relation relation, MainMemory memory, String fieldName) {
 		int numOfBlocks = relation.getNumOfBlocks(), sortedBlocks = 0;
 		ArrayList<Tuple> tuples;
+		int memSize = memory.getMemorySize();
 		while (sortedBlocks < numOfBlocks) {
-			int t = Math.min(memory.getMemorySize(), numOfBlocks - sortedBlocks);
+			int t = Math.min(memSize, numOfBlocks - sortedBlocks);
 			relation.getBlocks(sortedBlocks, 0, t);
 			tuples = onePassSort(memory, fieldName, t);
 			memory.setTuples(0, tuples);
 			relation.setBlocks(sortedBlocks, 0, t);
-			if (t < memory.getMemorySize()) {
+			if (t < memSize) {
 				break;
 			} else {
-				sortedBlocks += memory.getMemorySize();
+				sortedBlocks += memSize;
 			}
 			clearMemory(memory);
 		}
@@ -287,11 +290,13 @@ public class SelectHelper {
 	private static Relation createRelationFromTuples(ArrayList<Tuple> tuples, String name, SchemaManager schemaManager,
 			Relation relation, MainMemory memory) {
 		Schema schema = relation.getSchema();
-		if (name != null && schemaManager.relationExists(name))
+		if (name != null && schemaManager.relationExists(name)) {
 			schemaManager.deleteRelation(name);
+		}
 		Relation tempRelation = schemaManager.createRelation(name, schema);
 		int tupleNumber = tuples.size(), tuplesPerBlock = schema.getTuplesPerBlock();
 		int tupleBlocks;
+		int memSize = memory.getMemorySize();
 		if (tupleNumber < tuplesPerBlock) {
 			tupleBlocks = 1;
 		} else if (tupleNumber >= tuplesPerBlock && tupleNumber % tuplesPerBlock == 0) {
@@ -302,7 +307,7 @@ public class SelectHelper {
 
 		int index = 0;
 		while (index < tupleBlocks) {
-			int t = Math.min(memory.getMemorySize(), tupleBlocks - index);
+			int t = Math.min(memSize, tupleBlocks - index);
 			for (int i = 0; i < t; i++) {
 				Block block = memory.getBlock(i);
 				block.clear();
@@ -317,10 +322,10 @@ public class SelectHelper {
 				}
 			}
 			tempRelation.setBlocks(index, 0, t);
-			if (t < memory.getMemorySize()) {
+			if (t < memSize) {
 				break;
 			} else {
-				index += memory.getMemorySize();
+				index += memSize;
 			}
 		}
 		return tempRelation;
@@ -336,22 +341,23 @@ public class SelectHelper {
 		return tuples;
 	}
 
-	public static void project(Relation relation, MainMemory memory, Node col, Expression expression, BufferedWriter bw)
+	public static void outputRelation(Relation relation, MainMemory memory, Node col, Expression expression, BufferedWriter bw)
 			throws IOException {
 		int numOfBlocks = relation.getNumOfBlocks();
+		int memSize = memory.getMemorySize();
 		int i = 0;
 		System.out.println(relation);
 		System.out.println(numOfBlocks);
 		while (i < numOfBlocks) {
 			// System.out.println("here!!!");
-			int t = Math.min(memory.getMemorySize(), numOfBlocks - i);
+			int t = Math.min(memSize, numOfBlocks - i);
 			relation.getBlocks(i, 0, t);
 			if (memory.getBlock(0).isEmpty()) {
 				System.out.println("No Selected Tuples");
 				return;
 			}
-			projectHelper(relation, memory, col, t, bw);
-			if (t <= memory.getMemorySize())
+			outputHelper(relation, memory, col, t, bw);
+			if (t <= memSize)
 				break;
 			else
 				i += 10;
@@ -359,15 +365,15 @@ public class SelectHelper {
 		}
 	}
 
-	@SuppressWarnings("unlikely-arg-type")
-	private static void projectHelper(Relation relation, MainMemory memory, Node col, int numOfBlocks,
+	
+	private static void outputHelper(Relation relation, MainMemory memory, Node col, int numOfBlocks,
 			BufferedWriter bw) throws IOException {
 		ArrayList<Tuple> tuples = memory.getTuples(0, numOfBlocks);
 		String mutiNode = col.getChildren().get(0).getChildren().get(0).getAttr();
 		String distinctAttr = col.getChildren().get(0).getAttr();
 		List<Node> dictinctNodes = col.getChildren().get(0).getChildren();
 		if (mutiNode.equals("*")) {
-			printMuti(tuples, bw);
+			printMulti(tuples, bw);
 			return;
 		} else {
 			if (distinctAttr.equalsIgnoreCase("DISTINCT")) {
@@ -393,7 +399,7 @@ public class SelectHelper {
 
 	}
 
-	private static void printMuti(ArrayList<Tuple> tuples, BufferedWriter bw) throws IOException {
+	private static void printMulti(ArrayList<Tuple> tuples, BufferedWriter bw) throws IOException {
 		try {
 			for (String s : tuples.get(0).getSchema().getFieldNames()) {
 				System.out.print(s + "  ");
@@ -461,18 +467,19 @@ public class SelectHelper {
 	public static void projectInsert(Relation relation, MainMemory memory, List<Node> colList, Expression expression) {
 		int numOfBlocks = relation.getNumOfBlocks();
 		int i = 0;
+		int memSize = memory.getMemorySize();
 		System.out.println(relation);
 		System.out.println(numOfBlocks);
 		while (i < numOfBlocks) {
 			// System.out.println("here!!!");
-			int t = Math.min(memory.getMemorySize(), numOfBlocks - i);
+			int t = Math.min(memSize, numOfBlocks - i);
 			relation.getBlocks(i, 0, t);
 			if (memory.getBlock(0).isEmpty()) {
 				System.out.println("No Selected Tuples");
 				return;
 			}
 			projectInsertHelper(relation, memory, colList, t);
-			if (t <= memory.getMemorySize())
+			if (t <= memSize)
 				break;
 			else
 				i += 10;

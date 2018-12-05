@@ -70,13 +70,13 @@ public class SelectPrinter {
 		if (expression == null) {
 			//no where condition, doing cross join
 			Relation product = PhysicalQueryPlan.crossJoin(schemaManager, memory, tables);
-			SelectHelper.project(product, memory, col, expression, bw);
+			SelectHelper.outputRelation(product, memory, col, expression, bw);
 		}
 		else {
 			//where condition with equal condition, doing natural join
 			String commonAttr = expression.getNode().getChildren().get(0).getChildren().get(0).getChildren().get(1).getAttr();
 			Relation naturalJoinResult = PhysicalQueryPlan.naturalJoin(schemaManager, memory, tables[0], tables[1], commonAttr);
-			SelectHelper.project(naturalJoinResult, memory, col, expression, bw);
+			SelectHelper.outputRelation(naturalJoinResult, memory, col, expression, bw);
 		}
 		
 	}
@@ -116,7 +116,7 @@ public class SelectPrinter {
 			System.out.println("Order Here");
 		}
 
-		SelectHelper.project(relation, memory, col, expression, bw);
+		SelectHelper.outputRelation(relation, memory, col, expression, bw);
 
 		if (tempRelations.isEmpty())
 			return;
