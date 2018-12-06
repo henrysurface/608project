@@ -26,7 +26,6 @@ public class TupleComparator implements Comparator<Tuple> {
 	        if(fieldName == null){
 	            for(int i = 0; i < t1.getNumOfFields(); ++i){
 	                if(campareFields(t1.getField(i), t2.getField(i)) != 0){
-	                    //default in ascending order
 	                    return campareFields(t1.getField(i), t2.getField(i));
 	                }
 	            }

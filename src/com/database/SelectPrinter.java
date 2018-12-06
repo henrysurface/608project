@@ -171,7 +171,7 @@ public class SelectPrinter {
 			tempRelations.add(relation.getRelationName());
 		}
 
-		SelectHelper.projectInsert(relation, memory, colList, expression);
+		SelectHelper.readSaveRelation(relation, memory, colList, expression);
 
 		if (tempRelations.isEmpty())
 			return;

@@ -159,7 +159,8 @@ public class SelectHelper {
 
 		if (numOfBlocks <= memoryBlocks) {
 			tuples = selectHelper(expression, relation, memory, 0, numOfBlocks);
-		} else {
+		} 
+		else {
 			int remainBlock = numOfBlocks;
 			int relationIndex = 0;
 			ArrayList<Tuple> tmp;
@@ -349,7 +350,7 @@ public class SelectHelper {
 		System.out.println(relation);
 		System.out.println(numOfBlocks);
 		while (i < numOfBlocks) {
-			// System.out.println("here!!!");
+			
 			int t = Math.min(memSize, numOfBlocks - i);
 			relation.getBlocks(i, 0, t);
 			if (memory.getBlock(0).isEmpty()) {
@@ -357,11 +358,7 @@ public class SelectHelper {
 				return;
 			}
 			outputHelper(relation, memory, col, t, bw);
-			if (t <= memSize)
-				break;
-			else
-				i += 10;
-			System.out.println(i);
+			i += t;
 		}
 	}
 
@@ -464,31 +461,27 @@ public class SelectHelper {
 		}
 	}
 
-	public static void projectInsert(Relation relation, MainMemory memory, List<Node> colList, Expression expression) {
+	public static void readSaveRelation(Relation relation, MainMemory memory, List<Node> colList, Expression expression) {
 		int numOfBlocks = relation.getNumOfBlocks();
 		int i = 0;
 		int memSize = memory.getMemorySize();
 		System.out.println(relation);
 		System.out.println(numOfBlocks);
 		while (i < numOfBlocks) {
-			// System.out.println("here!!!");
-			int t = Math.min(memSize, numOfBlocks - i);
+			// num of blocks read into memory each cycle
+			int t = Math.min(memSize, numOfBlocks - i); 
 			relation.getBlocks(i, 0, t);
 			if (memory.getBlock(0).isEmpty()) {
 				System.out.println("No Selected Tuples");
 				return;
 			}
-			projectInsertHelper(relation, memory, colList, t);
-			if (t <= memSize)
-				break;
-			else
-				i += 10;
-			System.out.println(i);
+			saveFromMemory(relation, memory, colList, t);
+			i += t;
 		}
 
 	}
 
-	private static void projectInsertHelper(Relation relation, MainMemory memory, List<Node> colList, int numOfBlocks) {
+	private static void saveFromMemory(Relation relation, MainMemory memory, List<Node> colList, int numOfBlocks) {
 		// TODO Auto-generated method stub
 		ArrayList<Tuple> tuples = memory.getTuples(0, numOfBlocks);
 		Tuple newTuple = relation.createTuple();
